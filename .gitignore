@@ -1,0 +1,18 @@
+# .gitignore
+
+# Specified files to ignore
+geckodriver
+geckodriver.log
+igScraper.log
+igScraperTest.py
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+
+# Distribution / packaging
+*.egg-info/
+
+# Log files
+*.log
