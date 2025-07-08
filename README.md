@@ -4,7 +4,7 @@ This repository contains a script that scrapes Instagram posts for specific info
 
 ## Environment Variables
 
-To run this script, you need to settwo environment variables:
+To run this script, you need to set two environment variables:
 
 1. 'INSTAGRAM_USERNAME': The username of the Instagram account.
 2. 'INSTAGRAM_PASSWORD': The password of the Instagram account.
@@ -30,6 +30,7 @@ To run this script, you need:
 
 1. Clone the repository
 2. Install the required Python packages: pip install -r requirements.txt
+
 ## Configuration
 
 Before running the script, you need to configure the following variables in the script:

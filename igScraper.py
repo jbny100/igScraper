@@ -5,6 +5,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
@@ -13,6 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 import re
 import openpyxl
+from openpyxl import load_workbook
 import random
 import time
 import os
@@ -25,8 +27,8 @@ PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 
 # Configurable parameters. Only have to change these here.
 PROFILE_NAME = 'tradedny'
-NUM_POSTS_TO_SCRAPE = 500
-OUTPUT_FILE_NAME = 'instagram_data.xlsx'
+NUM_POSTS_TO_SCRAPE = 4000
+OUTPUT_FILE_NAME = 'instagram2024_data.xlsx'
 
 # The ChromeDriver path is specific to your system.
 # 'chromedriver' is a driver that Selenium uses to open up a new Google Chrome browser.
@@ -107,28 +109,26 @@ def login(browser, username, password):
     # use WebDriverWait Selenium func to pause the script until the 'username' and 'password' 
     # elements have been loaded into the DOM (Document Object Model).
 
-    userElem = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.NAME,
+    userElem = WebDriverWait(browser, 25).until(EC.presence_of_element_located((By.NAME,
      'username')))
     userElem.send_keys(USERNAME)
 
-    passwordElem = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.NAME,
+    passwordElem = WebDriverWait(browser, 25).until(EC.presence_of_element_located((By.NAME,
      'password')))
     passwordElem.send_keys(PASSWORD)
 
     passwordElem.send_keys(Keys.RETURN)
 
-    time.sleep(4)
+    time.sleep(25)
 
-    save_login_info = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.XPATH, 
-        "//button[text()='Save Info']")))
-    save_login_info.click()
+    # save_login_info = WebDriverWait(browser, 20).until(EC.presence_of_element_located((By.XPATH, 
+    #     "//button[text()='Save Info']")))
+    # save_login_info.click()
 
-    time.sleep(5)
-
-    notification_button = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.CLASS_NAME, '_a9--')))
+    notification_button = WebDriverWait(browser, 25).until(EC.presence_of_element_located((By.CLASS_NAME, '_a9--')))
     notification_button.click()
 
-    time.sleep(5)
+    time.sleep(15)
 
 
 # Function to navigate to the profile.
@@ -141,24 +141,37 @@ def load_profile(browser, profile_name):
         'div:nth-child(1) > span:nth-child(1) > span:nth-child(1)')
 
     browser.execute_script("arguments[0].scrollIntoView();", search_element)
-    time.sleep(1)
+    time.sleep(2)
 
+    # Click the search element
     browser.execute_script("arguments[0].click();", search_element)
 
     time.sleep(5)
 
-    type_search = WebDriverWait(browser, 10).until(
-    EC.presence_of_element_located((By.CSS_SELECTOR, 'input.x1lugfcp')))
-    
+    # Wait for the search input field and enter the profile name
+    type_search = WebDriverWait(browser, 20).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'input.x1lugfcp'))
+    )
+  
     type_search.send_keys(PROFILE_NAME)
 
-    time.sleep(3)
+    # Wait for results to load
+    time.sleep(15)
 
-    type_click = browser.find_element(By.XPATH, 
-    "//span[contains(@class, 'x1lliihq') and contains(@class, 'x193iq5w') and contains(@class, 'x6ikm8r') and contains(@class, 'x10wlt62') and contains(@class, 'xlyipyv') and contains(@class, 'xuxw1ft')]")
+    # Locate the profile link element
+
+    type_click = browser.find_element(By.XPATH, "//span[contains(@class, 'x1lliihq') and contains(text(), 'Traded: New York🗽')]")
+    
+    # Scroll the profile element into view    
+    browser.execute_script("arguments[0].scrollIntoView();", type_click)
+    time.sleep(2)
+
+    # Click on the profile link
     type_click.click()
 
-    time.sleep(3)
+    # Allow time for the page to navigate
+    time.sleep(20)
+
 
 # Function to scroll down the page to load all posts.
 def scroll_down(browser):
@@ -167,7 +180,7 @@ def scroll_down(browser):
     of the browser window."""
 
     browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(3)
+    time.sleep(15)
 
 # Function to click on first post.
 def click_on_post(browser):
@@ -185,7 +198,7 @@ def parse_post(browser):
     data = None
     try:
         # Extract the post.
-        content = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, 
+        content = WebDriverWait(browser, 25).until(EC.presence_of_element_located((By.CSS_SELECTOR, 
             "div[class*='_a9zs']"))).get_attribute('innerHTML')
 
         # Replace <br> with newline character \n.
@@ -218,111 +231,178 @@ def save_data(browser, data, headers, sheet):
     sheet.append(row)
 
 
-# Main function.
-def main():
-    # Set up logging
-    # The log file 'igScraper.log' will contain all logs.
-    logging.basicConfig(filename='igScraper.log', level=logging.INFO,
-        format='%(asctime)s:%(levelname)s:%(message)s')
-    logging.info('Starting the scraping process...')
+def start_browser(): 
+    # Start and return a new browser session
+    options = webdriver.ChromeOptions()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
-    # Initialize the browser.
-    logging.info('Initializing the web browser...')
+    logging.info('Initializing ChromeDriver...')
+
+    # Install the specific versionof ChromeDriver
     service = Service(ChromeDriverManager().install())
-    #service = Service(ChromeDriverManager(version="117.0.5938.149").install())
-    browser = webdriver.Chrome(service=service, options=chrome_options)
-    #browser = webdriver.Chrome(service=Service(chrome_driver_path), options=chrome_options)
 
-    # Initialize a workbook.
-    logging.info('Initializing the Excel workbook...')
-    wb = openpyxl.Workbook()
-    sheet = wb.active
+    logging.info('ChromeDriver initialized. Starting Chrome...')
 
-    # Insert the headers to the first row.
-    headers = ["tradedny", "IMAGE", "DATE", "ADDRESS", "MARKET", "ASSET TYPE", "LENDER", "BUYER",
- "RENTER", "SELLER", "LANDLORD", "SELLER'S REP", "BUYER'S REP", "LOAN AMOUNT", "LOAN TYPE", "TENANT", "TENANT REP",
-  "LANDLORD REP", "BROKER", "SALE PRICE", "ASKING RENT", "SF", "PPSF", "UNITS",
-   "PPU", "BSF", "PPBSF", "NOTE", "hashtags"]
+    browser = webdriver.Chrome(service=service, options=options)
 
-    sheet.append(headers)
+    logging.info('Chrome started successfully.')
 
-    # Login
-    logging.info('Logging in to Instagram')
-    login(browser, USERNAME, PASSWORD)
+    return browser
 
-    # Load the profile.
-    logging.info('Loading Instagram profile...')
-    load_profile(browser, PROFILE_NAME)
 
-    # Scroll down to load all posts.
-    logging.info('Scrolling down to load all posts...')
-    scroll_down(browser)
+def read_last_scraped_index():
+    """ Check if the file exists and read the last scraped index."""
+    if os.path.exists("last_scraped_index.txt"):
+        with open("last_scraped_index.txt", "r") as file:
+            return int(file.read().strip())
+    else:
+        return 0
 
-    # Click on first post.
-    logging.info('Clicking on the first post...')
-    click_on_post(browser)
 
-    consecutive_errors = 0 # Counter for consecutive errors.
+def write_last_scraped_index(index):
+    # Write the last scraped index to a file
+    with open("last_scraped_index.txt", "w") as file:
+        file.write(str(index))
 
-    # Begin the loop to click on posts and parse them.
-    for i in range(NUM_POSTS_TO_SCRAPE):
-        logging.info(f'Scraping post {i+1} of {NUM_POSTS_TO_SCRAPE}...')
-        try:
-            # Add a random delay before each action
-            time.sleep(random.uniform(1, 5))
 
-            # Extract the content
-            logging.info('Parsing the post content...')
-            data = parse_post(browser)
+# Main function
+def main():
+    # Initialize browser variable
+    browser = None 
+    # Read where we left off
+    last_scraped_index = read_last_scraped_index()
 
-            # If data is None, this means an error occurred while parsing the post. 
-            if data is None:
-                consecutive_errors += 1
-            else:
-                # If data is not None, the post was successfully parsed. Reset error counter.
-                consecutive_errors = 0
+    try:
+        browser = start_browser()
+        browser.get("https://www.instagram.com")
+        # Set up logging
+        # The log file 'igScraper.log' will contain all logs.
+        logging.basicConfig(filename='igScraper.log', level=logging.INFO,
+            format='%(asctime)s:%(levelname)s:%(message)s', filemode='a')
+        logging.info('Starting the scraping process...')
 
-                # Save the data.
-                logging.info('Saving post data to Excel...')
-                save_data(browser, data, headers, sheet)
+        # Load existing workbook if it already exists
+        if os.path.exists(OUTPUT_FILE_NAME):
+            logging.info('Loading existing Excel workbook...')
+            wb = load_workbook(OUTPUT_FILE_NAME)
+            sheet = wb.active
 
-            # If there were more than 3 consecutive errors, break the loop.
-            if consecutive_errors > 3:
-                logging.error("More than 3 consecutive errors in post. Breaking the loop...")
-                break
+        # Create a new workbook if one doesn't exist
+        else: 
+            logging.info('Initializing the Excel workbook...')
+            wb = openpyxl.Workbook()
+            sheet = wb.active
 
-            # Add a random delay.
-            time.sleep(random.uniform(1, 5))
+            # Insert the headers to the first row.
+            headers = ["tradedny", "IMAGE", "DATE", "ADDRESS", "MARKET", "ASSET TYPE", "LENDER", "BUYER",
+                "RENTER", "SELLER", "LANDLORD", "SELLER'S REP", "BUYER'S REP", "LOAN AMOUNT", "LOAN TYPE", "TENANT", "TENANT REP",
+                "LANDLORD REP", "BROKER", "SALE PRICE", "ASKING RENT", "SF", "PPSF", "UNITS",
+                "PPU", "BSF", "PPBSF", "NOTE", "hashtags"]
 
-            # Click on the 'Next' button to go to the next post.
-            logging.info('Navigating to the next post...')
-            next_button = browser.find_element(By.CSS_SELECTOR, "svg[aria-label='Next']")
-            next_button.click()
+            sheet.append(headers)
 
-            # Add a random delay.
-            time.sleep(random.uniform(1, 5))
+        # Login
+        logging.info('Logging in to Instagram')
+        login(browser, USERNAME, PASSWORD)
 
-        # Specific exception handling
-        except NoSuchElementException as e:
-            logging.error(f"Error: {e}")
-            logging.error("Could not find the element. Skipping to the next post...")
-            continue
+        # Load the profile.
+        logging.info('Loading Instagram profile...')
+        load_profile(browser, PROFILE_NAME)
 
-        except TimeoutException as e:
-            logging.error(f"Error: {e}")
-            logging.error("Timed out waiting for page to load. Skipping to the next post...")
-            continue
+        # Scroll down to load all posts.
+        logging.info('Scrolling down to load all posts...')
+        scroll_down(browser)
 
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-            continue
+        # Click on first post.
+        logging.info('Clicking on the first post...')
+        click_on_post(browser)
 
-    # Save the workbook then close the browser.
-    logging.info('Saving the Excel workbook...')
-    wb.save(OUTPUT_FILE_NAME)
+        # Counter for consecutive errors
+        consecutive_errors = 0
 
-    logging.info('Closing the browser...')
-    browser.quit()
+        # Begin the loop to click on posts and parse them.
+        for i in range(last_scraped_index, NUM_POSTS_TO_SCRAPE):
+            logging.info(f'Scraping post {i+1} of {NUM_POSTS_TO_SCRAPE}...')
+            try:
+                # Add a random delay before each action
+                time.sleep(random.uniform(3, 8))
+
+                # Extract the content
+                logging.info('Parsing the post content...')
+                data = parse_post(browser)
+
+                # If data is None, this means an error occurred while parsing the post. 
+                if data is None:
+                    consecutive_errors += 1
+                else:
+                    # If data is not None, the post was successfully parsed. Reset error counter.
+                    consecutive_errors = 0
+
+                    # Save the data.
+                    logging.info('Saving post data to Excel...')
+                    save_data(browser, data, headers, sheet)
+                    # Update the last scraped index
+                    write_last_scraped_index(i)
+
+                # If there were more than 3 consecutive errors, break the loop.
+                if consecutive_errors > 3:
+                    logging.error("More than 3 consecutive errors in post. Breaking the loop...")
+                    break
+
+                # Add a random delay.
+                time.sleep(random.uniform(3, 8))
+
+                # Click on the 'Next' button to go to the next post.
+                logging.info('Navigating to the next post...')
+                next_button = browser.find_element(By.CSS_SELECTOR, "svg[aria-label='Next']")
+                next_button.click()
+
+                # Add a random delay.
+                time.sleep(random.uniform(3, 8))
+
+            # Specific exception handling
+            except NoSuchElementException as e:
+                logging.error(f"Error: {e}")
+                logging.error("Could not find the element. Skipping to the next post...")
+                continue
+
+            except TimeoutException as e:
+                logging.error(f"Error: {e}")
+                logging.error("Timed out waiting for page to load. Skipping to the next post...")
+                continue
+
+            except WebDriverException as e: 
+                logging.error(f"WebDriverException: {e}")
+                if "disconnected" in str(e): 
+                    logging.error("Chrome disconnected. Restarting the browser...")
+                    browser.quit()
+                    browser = start_browser()
+                    login(browser, USERNAME, PASSWORD)
+                    load_profile(browser, PROFILE_NAME)
+                    scroll_down(browser)
+                    click_on_post(browser)
+                else:
+                    raise
+
+
+            except Exception as e:
+                logging.error(f"Unexpected error: {e}")
+                continue
+
+        # Save the workbook then close the browser.
+        logging.info('Saving the Excel workbook...')
+        wb.save(OUTPUT_FILE_NAME)
+
+    except Exception as e:
+        logging.error(f"Unexpected error in main loop: {e}")
+
+    finally:
+        # Ensure browser is not None before quitting
+        if browser: 
+            logging.info('Closing the browser...')
+            browser.quit()
 
     logging.info('Finished Instagram scraping process.')
 
@@ -330,3 +410,6 @@ def main():
 # Call the main function.
 if __name__ == "__main__":
     main()
+
+    
+    
